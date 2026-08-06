@@ -4,10 +4,39 @@
 // resumen_radar). Esta capa sólo arma parámetros y pinta resultados, así que
 // cambiar el criterio de búsqueda no obliga a tocar el frontend.
 (() => {
-  const cfg = window.RADAR_CONFIG || {};
-  const db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-
   const $ = (id) => document.getElementById(id);
+
+  // Fallar en voz alta. Si la librería no cargó o falta configuración, sin esta
+  // guarda el script muere en la primera línea: el formulario se sigue viendo,
+  // el botón deja de responder y no aparece ningún error en pantalla. Es el
+  // modo de falla más confuso posible — parece que la página "no hace nada".
+  function fatal(mensaje, detalle) {
+    const caja = $('login-err');
+    if (caja) caja.innerHTML = mensaje +
+      (detalle ? `<br><span style="color:var(--muted)">${detalle}</span>` : '');
+    const boton = document.querySelector('#form-login button');
+    if (boton) { boton.disabled = true; boton.style.opacity = '.5'; }
+    console.error('[radar]', mensaje, detalle || '');
+  }
+
+  const cfg = window.RADAR_CONFIG || {};
+
+  if (typeof supabase === 'undefined' || !supabase.createClient) {
+    fatal('No se pudo cargar la librería de Supabase.',
+          'Revisá tu conexión o si alguna extensión del navegador bloquea cdn.jsdelivr.net.');
+    return;
+  }
+  if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
+    fatal('Falta configuración.', 'Revisá que config.js tenga SUPABASE_URL y SUPABASE_ANON_KEY.');
+    return;
+  }
+  if (location.protocol === 'file:') {
+    fatal('Abrí el dashboard desde un servidor, no con doble clic.',
+          'En la carpeta web/: python3 -m http.server 8000 → http://localhost:8000');
+    return;
+  }
+
+  const db = supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   const PAGINA = 50;
   let offset = 0;
 
@@ -38,10 +67,16 @@
   $('form-login').addEventListener('submit', async (e) => {
     e.preventDefault();
     $('login-err').textContent = '';
-    const { data, error } = await db.auth.signInWithPassword({
-      email: $('email').value.trim(),
-      password: $('password').value,
-    });
+    let data, error;
+    try {
+      ({ data, error } = await db.auth.signInWithPassword({
+        email: $('email').value.trim(),
+        password: $('password').value,
+      }));
+    } catch (exc) {
+      $('login-err').textContent = 'No se pudo contactar a Supabase: ' + exc.message;
+      return;
+    }
     if (error) {
       $('login-err').textContent = error.message === 'Invalid login credentials'
         ? 'Correo o contraseña incorrectos.' : error.message;
