@@ -17,6 +17,7 @@ DEFAULTS = {
     "datasets": ["procesos"],
     "max_registros": 50_000,
     "activo": True,
+    "dias_atras": 45,
 }
 
 
@@ -96,3 +97,19 @@ def union_datasets(perfiles: list) -> list:
 
 def max_registros(perfiles: list) -> int:
     return max((p.get("max_registros", 50_000) for p in perfiles), default=50_000)
+
+
+def union_dias_atras(perfiles: list) -> int | None:
+    """Ventana de fechas más amplia entre los perfiles.
+
+    La descarga es compartida, así que tiene que cubrir al perfil que mire más
+    atrás; cada uno recorta lo suyo después. Si alguno no declara ventana, se
+    descarga sin filtro de fecha.
+    """
+    ventanas = []
+    for perfil in perfiles:
+        dias = perfil.get("dias_atras")
+        if not dias:
+            return None
+        ventanas.append(int(dias))
+    return max(ventanas) if ventanas else None

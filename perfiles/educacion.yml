@@ -31,6 +31,11 @@ umbral_score: 35      # mínimo para archivar
 umbral_alerta: 60     # mínimo para disparar correo (subir si llega ruido)
 max_registros: 50000
 
+# Sólo procesos publicados en los últimos N días. Sin esta ventana el barrido
+# baja todo el histórico de SECOP II, choca contra max_registros y devuelve un
+# corte arbitrario de procesos casi todos ya cerrados.
+dias_atras: 45
+
 keywords:
   # Si aparece alguna de estas, es candidato fuerte.
   criticas:

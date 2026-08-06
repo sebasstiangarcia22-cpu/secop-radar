@@ -15,15 +15,18 @@ from .normalize import flatten_record, normalize, pad, phrase_in_padded
 # own terms: 60+ means "worth an email", 80+ means "drop what you are doing".
 # Calibrated so the maximum reachable score is 98: nothing saturates at 100,
 # which keeps the ranking meaningful when several strong matches land at once.
-W_CRITICA_1 = 35        # one critical keyword
-W_CRITICA_2 = 45        # two or more
-W_UNSPSC = 20           # official category hit, independent of wording
-W_DESEABLE = 5          # each, capped
-W_DESEABLE_MAX = 15
+# Two keywords in the objeto plus a plausible value clears the alert threshold
+# on their own, so an alert never depends on the UNSPSC code being right.
+W_CRITICA_1 = 40        # one critical keyword, in the objeto
+W_CRITICA_2 = 52        # two or more, in the objeto
+W_CRITICA_CONTEXTO = 12 # only outside the objeto — likely the entity name
+W_UNSPSC = 18           # official category hit, independent of wording
+W_DESEABLE = 4          # each, capped
+W_DESEABLE_MAX = 12
 W_VALOR_OK = 8
 W_VALOR_BAJO = -12
-W_URGENTE = 10          # closes within 3 days
-W_PRONTO = 5            # closes within 10
+W_URGENTE = 8           # closes within 3 days
+W_PRONTO = 4            # closes within 10
 W_CERRADO = -25
 
 
@@ -47,6 +50,10 @@ def score_record(record: dict, schema: dict, criteria: dict) -> Match:
     blob = flatten_record(record)
     objeto = normalize(get(record, schema, "objeto", ""))
     haystack = pad(f"{blob} {objeto}")
+    # What the contract is FOR carries the signal. The rest of the record —
+    # entity name above all — carries a lot of false positives: every contract
+    # from a 'Secretaría de Educación' contains 'educacion', toner included.
+    objeto_hay = pad(objeto)
 
     keywords = criteria.get("keywords", {})
     reasons = []
@@ -59,10 +66,20 @@ def score_record(record: dict, schema: dict, criteria: dict) -> Match:
     raw = 0
 
     # --- Critical keywords ---------------------------------------------
-    criticas_hit = [t for t in (keywords.get("criticas") or []) if phrase_in_padded(haystack, t)]
-    if criticas_hit:
-        raw += W_CRITICA_2 if len(criticas_hit) >= 2 else W_CRITICA_1
-        reasons.append("Palabras clave: " + ", ".join(criticas_hit[:4]))
+    criticas = keywords.get("criticas") or []
+    en_objeto = [t for t in criticas if phrase_in_padded(objeto_hay, t)]
+    solo_en_resto = [
+        t for t in criticas
+        if t not in en_objeto and phrase_in_padded(haystack, t)
+    ]
+
+    if en_objeto:
+        raw += W_CRITICA_2 if len(en_objeto) >= 2 else W_CRITICA_1
+        reasons.append("En el objeto: " + ", ".join(en_objeto[:4]))
+    elif solo_en_resto:
+        # Probably the entity's name rather than the subject of the contract.
+        raw += W_CRITICA_CONTEXTO
+        reasons.append("Sólo en el contexto: " + ", ".join(solo_en_resto[:3]))
 
     # --- Desirable keywords --------------------------------------------
     deseables_hit = [t for t in (keywords.get("deseables") or []) if phrase_in_padded(haystack, t)]

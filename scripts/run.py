@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from radar import config, notify, report  # noqa: E402
 from radar.fields import get, resolve_schema  # noqa: E402
 from radar.scoring import filter_and_score  # noqa: E402
-from radar.socrata import SocrataClient, build_geo_where  # noqa: E402
+from radar.socrata import SocrataClient, build_where, order_by_newest  # noqa: E402
 from radar.store import Store  # noqa: E402
 
 logging.basicConfig(
@@ -49,13 +49,28 @@ def descargar(dataset: str, client: SocrataClient, perfiles: list):
             "nombres reales en radar/fields.py.", ", ".join(sorted(faltantes))
         )
 
-    where = build_geo_where(schema, config.union_departamentos(perfiles))
-    log.info("Filtro geografico: %s", where or "(ninguno — se descarga todo)")
+    where = build_where(
+        schema,
+        config.union_departamentos(perfiles),
+        config.union_dias_atras(perfiles),
+    )
+    log.info("Filtro: %s", where or "(ninguno — se descarga todo)")
+    if not schema.get("fecha_publicacion"):
+        log.warning(
+            "Sin columna de fecha de publicacion: el barrido no puede acotarse "
+            "en el tiempo y va a traer historico completo."
+        )
 
+    tope = config.max_registros(perfiles)
     records = client.fetch_all(
-        dataset, where=where, max_records=config.max_registros(perfiles)
+        dataset, where=where, order=order_by_newest(schema), max_records=tope
     )
     log.info("Descargados %s registros de '%s'", len(records), dataset)
+    if len(records) >= tope:
+        log.warning(
+            "Se alcanzo el tope de %s registros: la cobertura esta truncada. "
+            "Reduce 'dias_atras' o sube 'max_registros' en los perfiles.", tope
+        )
     return records, schema
 
 

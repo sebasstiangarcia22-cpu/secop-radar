@@ -251,6 +251,63 @@ results.append(check("flatten_record aplana estructuras anidadas",
                      "community" in flatten_record(SAMPLE)))
 
 # --------------------------------------------------------------------------
+print("\n[5b] Precisión: el objeto pesa más que el resto del registro")
+
+# El caso que inflaba los resultados en producción: una entidad cuyo NOMBRE
+# contiene la palabra clave, pero cuyo contrato no tiene nada que ver.
+toner = {
+    "id_del_proceso": "VA-2026-900",
+    "entidad": "SECRETARÍA DE EDUCACIÓN DEL VALLE",
+    "descripci_n_del_procedimiento": "Suministro de tóner para impresoras de oficina",
+    "departamento_entidad": "Valle del Cauca",
+    "precio_base": "80000000",
+    "codigo_principal_de_categoria": "V1.44103100",
+}
+# Sin código UNSPSC de educación a propósito: una alerta no puede depender de
+# que la entidad haya clasificado bien el contrato.
+real = dict(toner, id_del_proceso="VA-2026-901",
+            descripci_n_del_procedimiento="Capacitación en competencias laborales para docentes")
+
+score_toner = score_record(toner, schema, edu).score
+score_real = score_record(real, schema, edu).score
+results.append(check(f"contrato de tóner de la Secretaría de Educación puntúa bajo ({score_toner})",
+                     score_toner < edu["umbral_alerta"]))
+results.append(check(f"contrato real de capacitación puntúa alto ({score_real})",
+                     score_real >= edu["umbral_alerta"]))
+results.append(check("el objeto real supera claramente al falso positivo",
+                     score_real - score_toner >= 25))
+results.append(check("la razón distingue objeto de contexto",
+                     any("contexto" in r.lower() for r in score_record(toner, schema, edu).reasons)))
+
+# --------------------------------------------------------------------------
+print("\n[5c] Filtros del servidor")
+
+from radar.socrata import build_date_where, build_where, order_by_newest  # noqa: E402
+
+# Esquema con fecha de publicación, que es la columna sobre la que se acota.
+con_fecha = resolve_schema(dict(SAMPLE, fecha_de_publicacion_del="2026-08-01T00:00:00.000"))
+results.append(check("resuelve la fecha de publicación",
+                     con_fecha.get("fecha_publicacion") == "fecha_de_publicacion_del"))
+
+clausula = build_date_where(con_fecha, 45)
+results.append(check(f"la ventana de fechas genera cláusula ({clausula})",
+                     clausula and "fecha_de_publicacion_del >=" in clausula))
+results.append(check("sin días no hay cláusula de fecha",
+                     build_date_where(con_fecha, None) is None))
+results.append(check("sin columna de fecha tampoco",
+                     build_date_where({}, 45) is None))
+
+combinado = build_where(con_fecha, ["Valle del Cauca"], 45)
+results.append(check("combina geografía y fecha con AND",
+                     combinado and " AND " in combinado and "Valle" in combinado))
+results.append(check("sólo geografía no lleva AND",
+                     " AND " not in (build_where(con_fecha, ["Valle del Cauca"], None) or "")))
+results.append(check("ordena por fecha de publicación descendente",
+                     (order_by_newest(con_fecha) or "").endswith("DESC")))
+results.append(check("sin filtros devuelve None",
+                     build_where({}, [], None) is None))
+
+# --------------------------------------------------------------------------
 print("\n[6] Persistencia en texto (JSONL)")
 
 with tempfile.TemporaryDirectory() as tmp:

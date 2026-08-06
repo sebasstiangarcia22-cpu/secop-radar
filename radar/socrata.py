@@ -98,6 +98,45 @@ class SocrataClient:
         return records
 
 
+def build_where(schema: dict, departamentos: list, dias_atras: int | None) -> str | None:
+    """Coarse server-side filter: geography AND a publication-date window.
+
+    The date window is what makes the sweep tractable. SECOP II holds every
+    process published since the platform launched, so without it a sweep pulls
+    unbounded history, hits the record cap and returns an arbitrary slice of
+    mostly-closed processes. A radar only cares about what is open now.
+    """
+    clauses = [c for c in (
+        build_geo_where(schema, departamentos),
+        build_date_where(schema, dias_atras),
+    ) if c]
+    if not clauses:
+        return None
+    return " AND ".join(f"({c})" for c in clauses)
+
+
+def build_date_where(schema: dict, dias_atras: int | None) -> str | None:
+    """Restrict to processes published within the last `dias_atras` days."""
+    column = schema.get("fecha_publicacion")
+    if not column or not dias_atras:
+        return None
+    from datetime import datetime, timedelta, timezone
+    desde = datetime.now(timezone.utc) - timedelta(days=dias_atras)
+    return f"{column} >= '{desde.strftime('%Y-%m-%dT00:00:00.000')}'"
+
+
+def order_by_newest(schema: dict) -> str | None:
+    """Newest first.
+
+    Without an explicit order Socrata makes no stability guarantee across
+    pages, so a capped download could both skip and repeat rows. Ordering by
+    publication date also means that if the cap is ever reached, what survives
+    is the most recent data rather than an arbitrary slice.
+    """
+    column = schema.get("fecha_publicacion")
+    return f"{column} DESC" if column else None
+
+
 def build_geo_where(schema: dict, departamentos: list) -> str | None:
     """Coarse server-side geography filter.
 
