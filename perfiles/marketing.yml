@@ -1,0 +1,86 @@
+# Perfil: Publicidad, marketing y comunicaciones
+#
+# Mismo motor que el perfil de educación, otro radar. Ajustá las listas y
+# listo — no hay nada de este sector escrito en el código.
+#
+# Todo el texto se compara SIN tildes y SIN mayúsculas.
+
+nombre: Marketing y Publicidad
+activo: true
+
+# Destinatarios de las alertas de ESTE perfil.
+# Si se deja vacío, usa la variable de entorno ALERT_TO.
+alertar_a: []
+
+geografia:
+  departamentos:
+    - Valle del Cauca
+
+datasets:
+  - procesos
+
+umbral_score: 35
+umbral_alerta: 60
+max_registros: 50000
+
+keywords:
+  criticas:
+    - publicidad
+    - campana publicitaria
+    - estrategia digital
+    - estrategia de comunicacion
+    - community manager
+    - produccion audiovisual
+    - piezas graficas
+    - piezas publicitarias
+    - diseno grafico
+    - plan de medios
+    - agencia de publicidad
+    - marketing digital
+    - mercadeo
+    - free press
+    - identidad visual
+
+  deseables:
+    - redes sociales
+    - pauta digital
+    - branding
+    - contenido digital
+    - fotografia
+    - video institucional
+    - manual de marca
+    - senalizacion
+    - divulgacion
+    - posicionamiento
+    - sitio web
+    - campana de expectativa
+    - relaciones publicas
+    - impresion de piezas
+
+  # Evita que "publicidad" o "diseño" dentro de un contrato de otra cosa
+  # dispare alertas.
+  excluyentes:
+    - obra civil
+    - construccion de vias
+    - pavimentacion
+    - suministro de alimentos
+    - combustible
+    - mantenimiento de vehiculos
+    - diseno de puentes
+    - diseno estructural
+    - diseno hidraulico
+    - interventoria de obra
+
+# 82 = servicios editoriales, de diseño, artes gráficas y bellas artes.
+# 8014 = marketing y distribución.
+#
+# Para afinarlas: dejá la lista vacía, corré un barrido con --dry-run, mirá
+# qué código traen los resultados buenos y agregá esas familias.
+unspsc:
+  familias:
+    - "82"      # Editorial, diseño, artes gráficas
+    - "8014"    # Marketing y distribución
+
+valor:
+  minimo: 5000000       # $5.000.000 — el sector mueve contratos más chicos
+  maximo: null

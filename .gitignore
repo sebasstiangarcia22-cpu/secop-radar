@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+
+# SQLite de trabajo: efímero y binario. El estado durable es data/archivo.jsonl,
+# que git delta-comprime como texto en vez de guardar un blob nuevo por barrido.
+data/*.db
+data/correo_*.html

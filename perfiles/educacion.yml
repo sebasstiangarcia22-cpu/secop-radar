@@ -1,0 +1,100 @@
+# Perfil: Educación y formación — ITGEM
+#
+# Este archivo define un radar independiente. Es lo único que hay que tocar
+# para ajustar qué busca: es una lista de palabras y números, no hay que
+# saber programar.
+#
+# Todo el texto se compara SIN tildes y SIN mayúsculas, así que da igual
+# escribir "capacitación", "Capacitacion" o "CAPACITACIÓN".
+
+nombre: Educación — ITGEM
+activo: true
+
+# Destinatarios de las alertas de ESTE perfil.
+# Si se deja vacío, usa la variable de entorno ALERT_TO.
+alertar_a: []
+
+geografia:
+  departamentos:
+    - Valle del Cauca
+
+# Datasets a barrer.
+#   procesos  -> SECOP II, procesos de contratación (el principal)
+#   paa       -> Plan Anual de Adquisiciones: lo que las entidades PLANEAN
+#                comprar, meses antes de publicar el proceso
+#   contratos -> contratos ya firmados (inteligencia de competencia)
+#   secop1    -> entidades que aún no migraron a SECOP II
+datasets:
+  - procesos
+
+umbral_score: 35      # mínimo para archivar
+umbral_alerta: 60     # mínimo para disparar correo (subir si llega ruido)
+max_registros: 50000
+
+keywords:
+  # Si aparece alguna de estas, es candidato fuerte.
+  criticas:
+    - capacitacion
+    - formacion
+    - educacion
+    - curso
+    - cursos
+    - diplomado
+    - entrenamiento
+    - competencias laborales
+    - formacion para el trabajo
+    - desarrollo humano
+    - programa de formacion
+    - talleres de formacion
+    - instituto de educacion
+    - educacion no formal
+    - educacion para el trabajo
+
+  # Suman puntos, no bastan por sí solas.
+  deseables:
+    - bilinguismo
+    - ingles
+    - habilidades blandas
+    - certificacion
+    - talento humano
+    - actualizacion docente
+    - fortalecimiento institucional
+    - emprendimiento
+    - alfabetizacion digital
+    - competencias digitales
+    - seguridad y salud en el trabajo
+    - primeros auxilios
+    - servicio al cliente
+    - liderazgo
+    - virtual
+    - e learning
+    - plataforma de aprendizaje
+
+  # Si aparece alguna de estas, se descarta de una.
+  # Evita que "capacitación" dentro de un contrato de obra dispare alertas.
+  excluyentes:
+    - obra civil
+    - construccion de vias
+    - pavimentacion
+    - suministro de alimentos
+    - combustible
+    - mantenimiento de vehiculos
+    - compra de vehiculos
+    - dotacion de uniformes
+    - papeleria
+
+# Familias UNSPSC. La 86 es "Servicios de educación y formación".
+# Un código que empiece por estos dígitos suma fuerte, sin depender del texto.
+#
+# Para afinarlas: dejá la lista vacía, corré un barrido con --dry-run, mirá
+# qué código traen los resultados buenos y agregá esas familias.
+unspsc:
+  familias:
+    - "86"      # Educación y formación
+    - "8010"    # Servicios de asesoría de gestión
+    - "9312"    # Desarrollo social / comunitario
+
+# Rango de valor en pesos colombianos. `maximo: null` = sin techo.
+valor:
+  minimo: 10000000      # $10.000.000
+  maximo: null

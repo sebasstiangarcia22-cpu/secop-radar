@@ -1,0 +1,77 @@
+name: Radar SECOP
+
+on:
+  schedule:
+    # Cada 30 minutos. GitHub Actions no garantiza puntualidad en el cron
+    # (puede retrasarse varios minutos bajo carga), lo cual es aceptable para
+    # la capa de datos abiertos, que de por sí se refresca por ciclos.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Correr sin enviar correo"
+        type: boolean
+        default: false
+
+concurrency:
+  group: secop-radar
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Pruebas
+        run: python tests/test_radar.py
+
+      - name: Barrido
+        env:
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          ALERT_TO: ${{ secrets.ALERT_TO }}
+        run: |
+          python scripts/run.py ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Archivar resultados
+        run: |
+          git config user.name  "secop-radar[bot]"
+          git config user.email "secop-radar@users.noreply.github.com"
+          git add data/archivo.jsonl data/oportunidades.json dashboard
+          if git diff --staged --quiet; then
+            echo "Sin cambios que archivar."
+          else
+            # Cada commit deja constancia fechada de lo que SECOP mostraba en
+            # ese instante: es la bitácora inmutable del radar.
+            git commit -m "radar: barrido $(date -u '+%Y-%m-%d %H:%M UTC')"
+            for i in 1 2 3 4; do
+              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && \
+                git push origin "HEAD:${GITHUB_REF_NAME}" && break
+              echo "Push falló, reintento en $((2 ** i))s"
+              sleep $((2 ** i))
+            done
+          fi
+
+      - name: Publicar dashboard como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard
+          path: dashboard/index.html
+          retention-days: 30
