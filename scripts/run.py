@@ -78,7 +78,14 @@ def evaluar(perfil: dict, records: list, schema: dict, dataset: str, store: Stor
     """Evalúa los registros ya descargados contra un perfil."""
     nombre = perfil["nombre"]
     matches = filter_and_score(records, schema, perfil)
-    log.info("[%s] %s coincidencias sobre el umbral", nombre, len(matches))
+
+    # Dos cifras distintas y ambas importan: lo archivado alimenta el dashboard
+    # y el histórico, pero lo que define si el radar es útil o es spam es
+    # cuántas superan el umbral de alerta, que es lo que llega al correo.
+    alerta = perfil["umbral_alerta"]
+    sobre_alerta = sum(1 for m in matches if m.score >= alerta)
+    log.info("[%s] %s archivadas (>=%s) · %s alertables (>=%s)",
+             nombre, len(matches), perfil["umbral_score"], sobre_alerta, alerta)
 
     fresh = store.upsert_matches(matches, schema, dataset, nombre)
     if fresh:
