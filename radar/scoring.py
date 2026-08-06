@@ -9,7 +9,7 @@ of just asserting a percentage.
 from dataclasses import dataclass, field
 
 from .fields import get
-from .normalize import contains_phrase, flatten_record, normalize
+from .normalize import flatten_record, normalize, pad, phrase_in_padded
 
 # Direct points on a 0-100 scale — no rescaling, so a score is readable on its
 # own terms: 60+ means "worth an email", 80+ means "drop what you are doing".
@@ -40,28 +40,32 @@ class Match:
 
 
 def score_record(record: dict, schema: dict, criteria: dict) -> Match:
+    # flatten_record already returns normalised text, so the haystack is padded
+    # once here and every keyword below is a plain substring check. Normalising
+    # inside the lookup would repeat that work once per keyword, which on a full
+    # sweep of tens of thousands of records dominates the runtime.
     blob = flatten_record(record)
     objeto = normalize(get(record, schema, "objeto", ""))
-    haystack = f"{blob} {objeto}"
+    haystack = pad(f"{blob} {objeto}")
 
     keywords = criteria.get("keywords", {})
     reasons = []
 
     # --- Hard exclusions -----------------------------------------------
     for term in keywords.get("excluyentes", []) or []:
-        if contains_phrase(haystack, term):
+        if phrase_in_padded(haystack, term):
             return Match(record=record, score=0, excluded_by=term)
 
     raw = 0
 
     # --- Critical keywords ---------------------------------------------
-    criticas_hit = [t for t in (keywords.get("criticas") or []) if contains_phrase(haystack, t)]
+    criticas_hit = [t for t in (keywords.get("criticas") or []) if phrase_in_padded(haystack, t)]
     if criticas_hit:
         raw += W_CRITICA_2 if len(criticas_hit) >= 2 else W_CRITICA_1
         reasons.append("Palabras clave: " + ", ".join(criticas_hit[:4]))
 
     # --- Desirable keywords --------------------------------------------
-    deseables_hit = [t for t in (keywords.get("deseables") or []) if contains_phrase(haystack, t)]
+    deseables_hit = [t for t in (keywords.get("deseables") or []) if phrase_in_padded(haystack, t)]
     if deseables_hit:
         raw += min(W_DESEABLE * len(deseables_hit), W_DESEABLE_MAX)
         reasons.append("Refuerzo: " + ", ".join(deseables_hit[:4]))

@@ -8,6 +8,7 @@ search to SECOP's own index, which is where the accent tricks live.
 
 import re
 import unicodedata
+from functools import lru_cache
 
 _WHITESPACE = re.compile(r"\s+")
 _NON_ALNUM = re.compile(r"[^a-z0-9\s]")
@@ -45,9 +46,33 @@ def contains_phrase(haystack: str, phrase: str) -> bool:
     Padded with spaces so 'ingles' does not match inside 'inglesa', while
     multi-word phrases such as 'competencias laborales' still match.
     """
-    h = f" {normalize(haystack)} "
-    p = f" {normalize(phrase)} "
-    return p in h
+    return phrase_in_padded(pad(normalize(haystack)), phrase)
+
+
+def pad(normalized_text: str) -> str:
+    """Wrap already-normalised text in spaces, ready for phrase lookups."""
+    return f" {normalized_text} "
+
+
+@lru_cache(maxsize=2048)
+def _normalized_phrase(phrase: str) -> str:
+    """Normalised, space-padded needle.
+
+    Cached because the keyword lists are fixed while records are not: the same
+    few dozen phrases get looked up once per record, for tens of thousands of
+    records.
+    """
+    return f" {normalize(phrase)} "
+
+
+def phrase_in_padded(padded_haystack: str, phrase: str) -> bool:
+    """Phrase lookup against a haystack that is already normalised and padded.
+
+    Scoring checks every keyword against the same record, so normalising the
+    haystack inside the lookup would redo that work once per keyword — on a
+    full sweep that is the dominant cost.
+    """
+    return _normalized_phrase(phrase) in padded_haystack
 
 
 def flatten_record(record: dict) -> str:
