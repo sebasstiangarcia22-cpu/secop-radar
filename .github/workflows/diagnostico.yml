@@ -1,0 +1,83 @@
+name: Diagnóstico
+
+# Corre a mano desde la pestaña Actions. No envía correos ni toca el archivo:
+# sirve para ver, sin instalar nada, qué devuelve SECOP de verdad.
+#
+#   1. Pestaña "Actions" del repo
+#   2. "Diagnóstico" en la lista de la izquierda
+#   3. Botón "Run workflow"
+#   4. Abrir la corrida y leer los logs
+#
+# El dashboard y los correos de muestra quedan como artefactos descargables
+# al final de la corrida.
+
+on:
+  workflow_dispatch:
+    inputs:
+      esquema:
+        description: "Mostrar el esquema real de los datasets de SECOP"
+        type: boolean
+        default: true
+      barrido:
+        description: "Barrido real contra SECOP (sin enviar correo)"
+        type: boolean
+        default: true
+
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Pruebas offline
+        run: python tests/test_radar.py
+
+      - name: Muestra sin red
+        run: python scripts/demo.py
+
+      - name: Esquema real de SECOP
+        if: ${{ inputs.esquema }}
+        env:
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+        run: python scripts/discover_schema.py
+
+      - name: Barrido real (sin correo)
+        if: ${{ inputs.barrido }}
+        env:
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+        run: python scripts/run.py --dry-run
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "## Diagnóstico del radar"
+            echo ""
+            if [ -f data/archivo.jsonl ]; then
+              echo "- Registros archivados: **$(wc -l < data/archivo.jsonl)**"
+            fi
+            if [ -f data/oportunidades.json ]; then
+              echo "- Oportunidades activas: **$(grep -c '"score"' data/oportunidades.json || echo 0)**"
+            fi
+            echo "- Dashboard y correos de muestra: ver artefactos abajo."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico
+          path: |
+            dashboard/index.html
+            data/
+          retention-days: 30
+          if-no-files-found: warn
