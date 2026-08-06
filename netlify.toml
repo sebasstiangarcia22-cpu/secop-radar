@@ -1,0 +1,18 @@
+# Despliegue del dashboard.
+#
+# El sitio es sólo la interfaz: no hay build, no hay backend y no hay datos
+# dentro. Todo lo que se muestra sale de Supabase y exige sesión iniciada, así
+# que publicar estos archivos no expone nada — las políticas RLS le devuelven
+# cero filas a quien no esté autenticado.
+[build]
+  publish = "web"
+  command = ""
+
+# Cabeceras de endurecimiento. El dashboard no debe poder embeberse en otro
+# sitio ni filtrar la URL de sesión hacia terceros.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
