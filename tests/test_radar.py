@@ -201,7 +201,7 @@ results.append(check("la unión de datasets no duplica",
                      len(config.union_datasets(perfiles)) ==
                      len(set(config.union_datasets(perfiles)))))
 
-edu = next(p for p in perfiles if "duca" in p["nombre"])
+edu = next(p for p in perfiles if "ITGEM" in p["nombre"])
 mkt = next(p for p in perfiles if "arketing" in p["nombre"])
 publicidad = dict(SAMPLE, id_del_proceso="VA-2026-003",
                   descripci_n_del_procedimiento="Campaña publicitaria y produccion audiovisual institucional",
@@ -276,8 +276,17 @@ results.append(check(f"contrato real de capacitación puntúa alto ({score_real}
                      score_real >= edu["umbral_alerta"]))
 results.append(check("el objeto real supera claramente al falso positivo",
                      score_real - score_toner >= 25))
+# El mecanismo objeto-vs-contexto se verifica con un criterio sintético: el
+# perfil real de ITGEM ya no lleva términos sueltos como 'educacion', así que
+# el nombre de la entidad por sí solo no dispara nada — que es justamente el
+# efecto buscado.
+solo_nombre = dict(toner, entidad="INSTITUTO DE CAPACITACION DEL VALLE",
+                   descripci_n_del_procedimiento="Suministro de tóner para impresoras")
+razones = score_record(solo_nombre, schema, CRITERIA).reasons
 results.append(check("la razón distingue objeto de contexto",
-                     any("contexto" in r.lower() for r in score_record(toner, schema, edu).reasons)))
+                     any("contexto" in r.lower() for r in razones)))
+results.append(check("una keyword sólo en el nombre de la entidad no alcanza para alertar",
+                     score_record(solo_nombre, schema, CRITERIA).score < CRITERIA["umbral_alerta"]))
 
 # --------------------------------------------------------------------------
 print("\n[5c] Filtros del servidor")
@@ -306,6 +315,49 @@ results.append(check("ordena por fecha de publicación descendente",
                      (order_by_newest(con_fecha) or "").endswith("DESC")))
 results.append(check("sin filtros devuelve None",
                      build_where({}, [], None) is None))
+
+# --------------------------------------------------------------------------
+print("\n[5d] Perfil ITGEM contra casos reales del sector")
+
+# Casos tomados del lenguaje real de la contratación pública colombiana. Los
+# de RUIDO son los que hacían inservible el primer barrido: el PAE y el
+# transporte escolar mueven cifras enormes y su texto está lleno de
+# 'educación', pero no son formación laboral.
+base_itgem = {
+    "id_del_proceso": "VA-ITGEM", "entidad": "ALCALDÍA DE CALI",
+    "departamento_entidad": "Valle del Cauca", "precio_base": "200000000",
+    "codigo_principal_de_categoria": "V1.86101700",
+    "fecha_de_recepcion_de": "2030-01-01T00:00:00.000",
+}
+esquema_itgem = resolve_schema(dict(base_itgem, descripci_n_del_procedimiento="x"))
+
+deben_alertar = [
+    "Formación para el trabajo y desarrollo humano en competencias laborales",
+    "Capacitación técnica laboral por competencias para población vulnerable",
+    "Diplomado en gestión empresarial y emprendimiento",
+    "Certificación de competencias laborales modalidad virtual",
+]
+deben_descartarse = [
+    "Prestación del servicio de alimentación escolar PAE en instituciones educativas",
+    "Transporte escolar para estudiantes de zona rural",
+    "Construcción de aulas e infraestructura educativa",
+    "Dotación escolar y mobiliario para sedes educativas",
+    "Suministro de tóner para la Secretaría de Educación",
+]
+
+itgem = next(p for p in perfiles if "ITGEM" in p["nombre"])
+for objeto in deben_alertar:
+    s = score_record(dict(base_itgem, descripci_n_del_procedimiento=objeto),
+                     esquema_itgem, itgem).score
+    results.append(check(f"alerta ({s}): {objeto[:48]}", s >= itgem["umbral_alerta"]))
+
+for objeto in deben_descartarse:
+    s = score_record(dict(base_itgem, descripci_n_del_procedimiento=objeto),
+                     esquema_itgem, itgem).score
+    results.append(check(f"descarta ({s}): {objeto[:48]}", s < itgem["umbral_score"]))
+
+results.append(check("cubre Cauca además de Valle (sedes de Puerto Tejada y Corinto)",
+                     "Cauca" in itgem["geografia"]["departamentos"]))
 
 # --------------------------------------------------------------------------
 print("\n[6] Persistencia en texto (JSONL)")

@@ -1,13 +1,13 @@
-# Perfil: Educación y formación — ITGEM
+# Perfil: ITGEM — Instituto Técnico de Gestión Empresarial
 #
-# Este archivo define un radar independiente. Es lo único que hay que tocar
-# para ajustar qué busca: es una lista de palabras y números, no hay que
-# saber programar.
+# Formación por competencias laborales, programas técnicos laborales y cursos
+# cortos. Categoría regulatoria: ETDH (Educación para el Trabajo y el
+# Desarrollo Humano). Sedes en Cali, Puerto Tejada y Corinto.
 #
 # Todo el texto se compara SIN tildes y SIN mayúsculas, así que da igual
 # escribir "capacitación", "Capacitacion" o "CAPACITACIÓN".
 
-nombre: Educación — ITGEM
+nombre: ITGEM — Formación laboral
 activo: true
 
 # Destinatarios de las alertas de ESTE perfil.
@@ -17,17 +17,12 @@ alertar_a: []
 geografia:
   departamentos:
     - Valle del Cauca
+    - Cauca            # sedes de Puerto Tejada y Corinto
 
-# Datasets a barrer.
-#   procesos  -> SECOP II, procesos de contratación (el principal)
-#   paa       -> Plan Anual de Adquisiciones: lo que las entidades PLANEAN
-#                comprar, meses antes de publicar el proceso
-#   contratos -> contratos ya firmados (inteligencia de competencia)
-#   secop1    -> entidades que aún no migraron a SECOP II
 datasets:
   - procesos
 
-umbral_score: 35      # mínimo para archivar
+umbral_score: 40      # mínimo para archivar
 umbral_alerta: 60     # mínimo para disparar correo (subir si llega ruido)
 max_registros: 50000
 
@@ -37,69 +32,87 @@ max_registros: 50000
 dias_atras: 45
 
 keywords:
-  # Si aparece alguna de estas, es candidato fuerte.
+  # El lenguaje real del sector. Se evitan a propósito términos sueltos como
+  # "educacion" o "curso": aparecen en media contratación pública del país
+  # (alimentación escolar, transporte, nómina docente) y eran la causa de que
+  # el primer barrido devolviera 1.464 coincidencias inservibles.
   criticas:
-    - capacitacion
-    - formacion
-    - educacion
-    - curso
-    - cursos
-    - diplomado
-    - entrenamiento
     - competencias laborales
     - formacion para el trabajo
-    - desarrollo humano
-    - programa de formacion
-    - talleres de formacion
-    - instituto de educacion
-    - educacion no formal
     - educacion para el trabajo
+    - desarrollo humano
+    - tecnico laboral
+    - formacion por competencias
+    - formacion titulada
+    - formacion complementaria
+    - certificacion de competencias
+    - capacitacion
+    - diplomado
+    - gestion empresarial
+    - cualificacion
+    - reconversion laboral
+    - habilidades para el trabajo
 
   # Suman puntos, no bastan por sí solas.
   deseables:
+    - competencias digitales
+    - habilidades blandas
+    - emprendimiento
     - bilinguismo
     - ingles
-    - habilidades blandas
-    - certificacion
     - talento humano
-    - actualizacion docente
-    - fortalecimiento institucional
-    - emprendimiento
-    - alfabetizacion digital
-    - competencias digitales
+    - empleabilidad
+    - insercion laboral
+    - productividad
     - seguridad y salud en el trabajo
     - primeros auxilios
     - servicio al cliente
     - liderazgo
+    - manipulacion de alimentos
     - virtual
-    - e learning
+    - modalidad virtual
     - plataforma de aprendizaje
+    - icontec
+    - poblacion vulnerable
+    - jovenes
 
-  # Si aparece alguna de estas, se descarta de una.
-  # Evita que "capacitación" dentro de un contrato de obra dispare alertas.
+  # Los grandes generadores de falsos positivos en contratación educativa
+  # colombiana. El PAE y el transporte escolar mueven cifras enormes y su
+  # texto está lleno de "educación" y "escolar", pero no son formación.
   excluyentes:
+    - alimentacion escolar
+    - programa de alimentacion
+    - pae
+    - transporte escolar
+    - restaurante escolar
+    - infraestructura educativa
+    - construccion de aulas
+    - mantenimiento de sedes educativas
+    - dotacion escolar
+    - mobiliario escolar
+    - uniformes
+    - utiles escolares
+    - kit escolar
     - obra civil
     - construccion de vias
     - pavimentacion
-    - suministro de alimentos
     - combustible
     - mantenimiento de vehiculos
     - compra de vehiculos
-    - dotacion de uniformes
     - papeleria
+    - suministro de alimentos
 
 # Familias UNSPSC. La 86 es "Servicios de educación y formación".
-# Un código que empiece por estos dígitos suma fuerte, sin depender del texto.
+# Un código que empiece por estos dígitos suma, sin depender del texto.
 #
 # Para afinarlas: dejá la lista vacía, corré un barrido con --dry-run, mirá
 # qué código traen los resultados buenos y agregá esas familias.
 unspsc:
   familias:
     - "86"      # Educación y formación
-    - "8010"    # Servicios de asesoría de gestión
     - "9312"    # Desarrollo social / comunitario
 
 # Rango de valor en pesos colombianos. `maximo: null` = sin techo.
 valor:
-  minimo: 10000000      # $10.000.000
+  minimo: 15000000      # $15.000.000
   maximo: null
