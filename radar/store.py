@@ -23,10 +23,13 @@ CREATE TABLE IF NOT EXISTS procesos (
     entidad         TEXT,
     objeto          TEXT,
     departamento    TEXT,
+    ciudad          TEXT,
     valor           REAL,
     modalidad       TEXT,
     estado          TEXT,
     fecha_cierre    TEXT,
+    fecha_publicacion TEXT,
+    unspsc          TEXT,
     url             TEXT,
     score           INTEGER,
     reasons         TEXT,
@@ -124,10 +127,13 @@ class Store:
                 get(record, schema, "entidad"),
                 get(record, schema, "objeto"),
                 get(record, schema, "departamento"),
+                get(record, schema, "ciudad"),
                 _num(get(record, schema, "valor")),
                 get(record, schema, "modalidad"),
                 get(record, schema, "estado"),
                 str(get(record, schema, "fecha_cierre") or ""),
+                str(get(record, schema, "fecha_publicacion") or ""),
+                str(get(record, schema, "unspsc") or ""),
                 get(record, schema, "url"),
                 match.score,
                 " | ".join(match.reasons),
@@ -137,8 +143,9 @@ class Store:
             if existing:
                 self.conn.execute(
                     """UPDATE procesos SET dataset=?, entidad=?, objeto=?,
-                       departamento=?, valor=?, modalidad=?, estado=?,
-                       fecha_cierre=?, url=?, score=?, reasons=?, raw=?,
+                       departamento=?, ciudad=?, valor=?, modalidad=?, estado=?,
+                       fecha_cierre=?, fecha_publicacion=?, unspsc=?,
+                       url=?, score=?, reasons=?, raw=?,
                        last_seen=?, sweeps_seen = sweeps_seen + 1,
                        disappeared_at = NULL
                        WHERE id=? AND perfil=?""",
@@ -147,9 +154,10 @@ class Store:
             else:
                 self.conn.execute(
                     """INSERT INTO procesos (id, perfil, dataset, entidad, objeto,
-                       departamento, valor, modalidad, estado, fecha_cierre,
-                       url, score, reasons, raw, first_seen, last_seen)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       departamento, ciudad, valor, modalidad, estado,
+                       fecha_cierre, fecha_publicacion, unspsc, url, score,
+                       reasons, raw, first_seen, last_seen)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (identifier, perfil) + payload + (timestamp, timestamp),
                 )
                 fresh.append((identifier, match))
@@ -245,9 +253,10 @@ class Store:
     # por registro, orden estable, y git guarda sólo las líneas que cambiaron.
 
     COLUMNAS = [
-        "id", "perfil", "dataset", "entidad", "objeto", "departamento", "valor",
-        "modalidad", "estado", "fecha_cierre", "url", "score", "reasons", "raw",
-        "first_seen", "last_seen", "sweeps_seen", "alerted_at", "disappeared_at",
+        "id", "perfil", "dataset", "entidad", "objeto", "departamento", "ciudad",
+        "valor", "modalidad", "estado", "fecha_cierre", "fecha_publicacion",
+        "unspsc", "url", "score", "reasons", "raw", "first_seen", "last_seen",
+        "sweeps_seen", "alerted_at", "disappeared_at",
     ]
 
     def export_jsonl(self, path) -> int:
@@ -287,6 +296,13 @@ class Store:
                 cargados += 1
         self.conn.commit()
         return cargados
+
+    def todas_las_filas(self) -> list:
+        """Todo el archivo como dicts, listo para sincronizar hacia Supabase."""
+        filas = self.conn.execute(
+            f"SELECT {', '.join(self.COLUMNAS)} FROM procesos ORDER BY perfil, id"
+        ).fetchall()
+        return [dict(f) for f in filas]
 
     def stats_por_perfil(self) -> dict:
         """Resumen por perfil, para el encabezado del dashboard."""

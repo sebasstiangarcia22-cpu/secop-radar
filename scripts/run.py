@@ -22,6 +22,7 @@ from radar.fields import get, resolve_schema  # noqa: E402
 from radar.scoring import filter_and_score  # noqa: E402
 from radar.socrata import SocrataClient, build_where, order_by_newest  # noqa: E402
 from radar.store import Store  # noqa: E402
+from radar.supabase_writer import SupabaseWriter  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -97,7 +98,7 @@ def evaluar(perfil: dict, records: list, schema: dict, dataset: str, store: Stor
         log.warning("[%s] %s proceso(s) desaparecieron del portal", nombre, len(vanished))
 
     store.log_sweep(nombre, dataset, len(records), len(matches), len(fresh))
-    return fresh, vanished
+    return fresh, vanished, sobre_alerta
 
 
 def notificar(perfil: dict, fresh: list, vanished: list, schema: dict,
@@ -152,6 +153,7 @@ def main():
 
     client = SocrataClient()
     store = Store(args.db)
+    nube = SupabaseWriter()
     ultimo_schema = {}
 
     # El runner es efímero: el estado durable vive en el JSONL versionado.
@@ -177,8 +179,12 @@ def main():
                 if dataset not in perfil.get("datasets", []):
                     continue
                 try:
-                    fresh, vanished = evaluar(perfil, records, schema, dataset, store)
+                    fresh, vanished, alertables = evaluar(
+                        perfil, records, schema, dataset, store)
                     notificar(perfil, fresh, vanished, schema, store, args.dry_run)
+                    nube.log_barrido(perfil["nombre"], dataset, len(records),
+                                     len(store.top_matches(100000, perfil["nombre"])),
+                                     alertables, len(fresh))
                 except Exception as exc:  # noqa: BLE001 - un perfil malo no frena al resto
                     log.error("[%s] El perfil fallo: %s", perfil["nombre"], exc)
 
@@ -196,6 +202,11 @@ def main():
 
         guardados = store.export_jsonl(archivo)
         log.info("Archivo persistido en %s (%s registros)", archivo, guardados)
+
+        # El JSONL es la bitacora; Supabase es la capa de consulta del
+        # dashboard. Si no hay credenciales, el barrido ya termino bien.
+        if nube.activo:
+            nube.upsert_procesos(store.todas_las_filas())
         log.info("Resumen por perfil: %s", store.stats_por_perfil())
     finally:
         store.close()

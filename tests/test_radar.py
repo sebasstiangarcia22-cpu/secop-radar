@@ -410,6 +410,45 @@ with tempfile.TemporaryDirectory() as tmp:
     destino.close()
 
 # --------------------------------------------------------------------------
+print("\n[7] Escritor hacia Supabase")
+
+from radar.supabase_writer import COLUMNAS as COLS_NUBE, SupabaseWriter  # noqa: E402
+
+sin_credenciales = SupabaseWriter(url="", service_key="")
+results.append(check("sin credenciales queda inactivo", not sin_credenciales.activo))
+results.append(check("sin credenciales no revienta ni escribe",
+                     sin_credenciales.upsert_procesos([{"id": "x"}]) == 0))
+
+escritor = SupabaseWriter(url="https://x.supabase.co", service_key="k")
+results.append(check("con credenciales queda activo", escritor.activo))
+
+fila = {"id": "A", "perfil": "P", "raw": '{"a": 1}', "fecha_cierre": "",
+        "fecha_publicacion": "", "valor": 5, "columna_inventada": "x"}
+limpia = escritor._normalizar(fila)
+results.append(check("raw serializado se convierte en objeto para jsonb",
+                     limpia["raw"] == {"a": 1}))
+results.append(check("fecha vacía se manda como NULL, no como cadena",
+                     limpia["fecha_cierre"] is None and limpia["fecha_publicacion"] is None))
+results.append(check("descarta columnas que no existen en el esquema",
+                     "columna_inventada" not in limpia))
+results.append(check("emite exactamente las columnas del esquema",
+                     set(limpia) == set(COLS_NUBE)))
+results.append(check("raw ilegible no rompe la fila",
+                     escritor._normalizar({"raw": "{no es json"})["raw"] is None))
+
+# El store tiene que poder entregar todo lo que el escritor espera.
+with tempfile.TemporaryDirectory() as tmp:
+    st = Store(str(Path(tmp) / "nube.db"))
+    st.upsert_matches(batch, schema, "procesos", "Educación")
+    filas_nube = st.todas_las_filas()
+    results.append(check(f"el archivo entrega filas para sincronizar ({len(filas_nube)})",
+                         len(filas_nube) == 2))
+    faltantes_nube = set(COLS_NUBE) - set(filas_nube[0])
+    results.append(check(f"el archivo cubre todas las columnas de Supabase "
+                         f"{sorted(faltantes_nube) or ''}", not faltantes_nube))
+    st.close()
+
+# --------------------------------------------------------------------------
 passed, total = sum(results), len(results)
 print(f"\n{'=' * 60}")
 print(f"  {passed}/{total} pruebas pasaron")
