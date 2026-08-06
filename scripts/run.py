@@ -12,6 +12,7 @@ clientes no multiplica las consultas a SECOP ni acerca al límite de tasa.
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -156,6 +157,18 @@ def main():
     nube = SupabaseWriter()
     ultimo_schema = {}
 
+    # Decirlo en voz alta: un barrido que termina "bien" sin haber escrito en
+    # Supabase es indistinguible de uno que sí escribió, y esa ambigüedad
+    # cuesta mucho más que una línea de log.
+    if nube.activo:
+        log.info("Supabase configurado: %s", nube.url)
+    else:
+        faltan = [v for v in ("SUPABASE_URL", "SUPABASE_SERVICE_KEY")
+                  if not os.environ.get(v)]
+        log.warning("Supabase NO configurado (falta %s). El barrido archiva "
+                    "igual, pero el dashboard no se actualiza.",
+                    " y ".join(faltan) or "credenciales validas")
+
     # El runner es efímero: el estado durable vive en el JSONL versionado.
     archivo = Path(args.archivo)
     restaurados = store.import_jsonl(archivo)
@@ -206,7 +219,11 @@ def main():
         # El JSONL es la bitacora; Supabase es la capa de consulta del
         # dashboard. Si no hay credenciales, el barrido ya termino bien.
         if nube.activo:
-            nube.upsert_procesos(store.todas_las_filas())
+            filas = store.todas_las_filas()
+            escritas = nube.upsert_procesos(filas)
+            if escritas < len(filas):
+                log.error("Solo se sincronizaron %s de %s filas hacia Supabase",
+                          escritas, len(filas))
         log.info("Resumen por perfil: %s", store.stats_por_perfil())
     finally:
         store.close()
